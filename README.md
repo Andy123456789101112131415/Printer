@@ -97,6 +97,19 @@ python app.py                       # 窗口 1：网站
 
 备份时整目录拷贝即可。
 
+## Git 版本管理
+
+项目已关联 GitHub 仓库 `Andy123456789101112131415/Printer`（SSH 推送）。
+
+**自动保存与推送**：
+
+```powershell
+python autosave.py
+```
+
+脚本会监控项目文件，修改后静默 60 秒（可传参修改，如 `python autosave.py 30`）自动 commit 并 push。
+`uploads\`、`data.db`、`.secret_key`、`.admin_password` 等已在 `.gitignore` 中排除，不会被提交。
+
 ## 安全说明
 
 - 管理后台有密码 + 会话登录 + CSRF 防护
