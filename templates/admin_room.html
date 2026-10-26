@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="topbar">
+  <h1>房间：{{ room }}</h1>
+  <div><a href="{{ url_for('admin_rooms') }}">返回列表</a></div>
+</div>
+
+<div class="actions card">
+  <a class="button" href="{{ url_for('admin_room_printview', room=room) }}" target="_blank">打印视图（浏览器打印）</a>
+  <form method="post" action="{{ url_for('admin_room_print', room=room) }}">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <label>打印机
+      <select name="printer" id="printer-select" data-default="{{ default_printer }}">
+        <option value="">默认打印机</option>
+      </select>
+    </label>
+    <label class="chk"><input type="checkbox" name="separator" value="1"> 每份文件前打印分隔页</label>
+    <button type="submit" class="danger">服务器直接打印整间房</button>
+  </form>
+  <form method="post" action="{{ url_for('printer_set_default') }}" class="inline set-default">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <input type="hidden" name="printer" id="set-default-value">
+    <button type="submit" class="link" onclick="document.getElementById('set-default-value').value = document.getElementById('printer-select').value;">记住当前打印机为默认</button>
+  </form>
+</div>
+<p class="muted">学校刷卡打印提示：选学校打印机 → 点「服务器直接打印」→ 打印完成后到打印机刷教师卡取件。</p>
+
+{% if print_results %}
+<div class="card">
+  <h2>打印结果</h2>
+  <ul>
+  {% for name, ok, msg in print_results %}
+    <li class="{{ 'ok' if ok else 'error' }}">{{ name }}：{{ msg }}</li>
+  {% endfor %}
+  </ul>
+</div>
+{% endif %}
+
+{% if files %}
+<table>
+  <tr><th>文件名</th><th>上传人</th><th>大小</th><th>时间</th><th>操作</th></tr>
+  {% for f in files %}
+  <tr>
+    <td>{{ f.original_name }}</td>
+    <td>{{ f.name }}</td>
+    <td>{{ (f.size / 1024) | round(1) }} KB</td>
+    <td>{{ f.created_at }}</td>
+    <td class="ops">
+      <a href="{{ url_for('file_download', file_id=f.id) }}">下载</a>
+      <a href="{{ url_for('file_inline', file_id=f.id) }}" target="_blank">预览</a>
+      <form method="post" action="{{ url_for('file_delete', file_id=f.id) }}" class="inline"
+            onsubmit="return confirm('确定删除 ' + {{ f.original_name | tojson }} + '？')">
+        <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+        <button type="submit" class="link danger-link">删除</button>
+      </form>
+    </td>
+  </tr>
+  {% endfor %}
+</table>
+{% else %}
+<p>该房间还没有文件。</p>
+{% endif %}
+
+<script>
+fetch("{{ url_for('admin_printers') }}").then(function(r){return r.json();}).then(function(d){
+  var sel = document.getElementById("printer-select");
+  var def = d.default || sel.getAttribute("data-default") || "";
+  (d.printers || []).forEach(function(p){
+    var o = document.createElement("option");
+    o.value = p; o.textContent = p;
+    if (p === def) o.selected = true;
+    sel.appendChild(o);
+  });
+}).catch(function(){});
+</script>
+{% endblock %}

@@ -1,0 +1,20 @@
+# 运行时数据
+uploads/
+data.db
+
+# 密钥与密码（不提交）
+.secret_key
+.admin_password
+
+# Python 缓存
+__pycache__/
+*.pyc
+*.pyo
+
+# 迁移包（含 cpolar.exe 和 authtoken，不提交）
+打印站迁移包/
+打印站迁移包.zip
+
+# 系统
+Thumbs.db
+.DS_Store

@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="topbar">
+  <h1>房间管理</h1>
+  <form method="post" action="{{ url_for('admin_logout') }}" class="inline">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <button type="submit" class="link">退出登录</button>
+  </form>
+</div>
+
+<form method="post" action="{{ url_for('room_add') }}" class="card add-room">
+  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+  <label>添加房间号
+    <input name="room" required placeholder="例如：301 或 3栋301">
+  </label>
+  <button type="submit">添加</button>
+</form>
+
+{% if rooms %}
+<table>
+  <tr><th>房间号</th><th>文件数</th><th>总大小</th><th>最近上传</th><th>操作</th></tr>
+  {% for r in rooms %}
+  <tr>
+    <td>{{ r.room }}</td>
+    <td>{{ r.cnt }}</td>
+    <td>{{ (r.total / 1048576) | round(1) }} MB</td>
+    <td>{{ r.last or '—' }}</td>
+    <td class="ops">
+      <a href="{{ url_for('admin_room', room=r.room) }}">进入</a>
+      <form method="post" action="{{ url_for('room_delete', room=r.room) }}" class="inline"
+            onsubmit="return confirm('确定删除房间 ' + {{ r.room | tojson }} + '？将一并删除其中 ' + {{ r.cnt }} + ' 个文件')">
+        <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+        <button type="submit" class="link danger-link">删除</button>
+      </form>
+    </td>
+  </tr>
+  {% endfor %}
+</table>
+{% else %}
+<p>还没有房间，请在上方添加。</p>
+{% endif %}
+<p class="muted"><a href="{{ url_for('upload') }}">去上传页</a></p>
+{% endblock %}

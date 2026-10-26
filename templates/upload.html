@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>文件上传</h1>
+<p class="muted">选择你的房间号、填写姓名、选择文件（可多选）后点击上传。</p>
+{% if error %}<div class="flash error">{{ error }}</div>{% endif %}
+{% if rooms %}
+<form method="post" enctype="multipart/form-data" class="card">
+  <label>房间号
+    <select name="room" required>
+      <option value="" selected disabled>请选择你的房间</option>
+      {% for r in rooms %}<option value="{{ r }}">{{ r }}</option>{% endfor %}
+    </select>
+  </label>
+  <label>姓名
+    <input name="name" required placeholder="你的名字">
+  </label>
+  <label>文件（可多选）
+    <input type="file" name="files" multiple required>
+  </label>
+  <button type="submit">上传</button>
+</form>
+{% else %}
+<div class="card">
+  <p>管理员还没有设置房间，请稍后再来或联系管理员。</p>
+</div>
+{% endif %}
+<p class="muted"><a href="{{ url_for('admin_login') }}">管理入口</a></p>
+{% endblock %}
