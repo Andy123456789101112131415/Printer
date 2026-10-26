@@ -35,8 +35,9 @@ def snapshot():
 
 
 def run(cmd):
-    r = subprocess.run(cmd, cwd=str(BASE), capture_output=True, text=True)
-    return r.returncode, (r.stdout + r.stderr).strip()
+    r = subprocess.run(cmd, cwd=str(BASE), capture_output=True, text=True,
+                       encoding="utf-8", errors="replace")
+    return r.returncode, ((r.stdout or "") + (r.stderr or "")).strip()
 
 
 def git_save():
