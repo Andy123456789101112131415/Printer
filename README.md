@@ -47,13 +47,17 @@ Office 文件会在后台自动转成 PDF 再嵌入页面。
 - Word/Excel/PowerPoint/TXT/CSV：直接通过 Office 打印，无需额外配置
 - 图片：通过 Windows 系统打印
 - PDF：按优先级自动选用
-  1. **SumatraPDF**（推荐）：下载便携版 [SumatraPDF.exe](https://www.sumatrapdfreader.org/download-free-pdf-viewer)，放到本目录 `tools\` 文件夹下即可，打印 PDF 最稳
+  1. **SumatraPDF**（已内置于 `tools\SumatraPDF.exe`）：PDF 打印最稳，且能强制 A4（`paper=A4`）
   2. Adobe Reader（如已安装）
   3. Edge 静默打印（兜底）
 
 **打印机记忆**：房间页打印机下拉框会自动选中上次记住的打印机；点「记住当前打印机为默认」可固定，下次进任意房间都自动选中。
 
-**打印分隔页**：勾选「每份文件前打印分隔页」后，每份文件前会打印一张封面（房间/姓名/文件名/时间），方便取到一堆纸后按人分拣。同一房间打印时按姓名自动分组排序。
+**纸张与任务名**：
+
+- **全部按 A4 打印**：Word/Excel 在打印前强制设置 A4；PDF 用 SumatraPDF 以 `paper=A4` 打印；PPT 先转 PDF 再按 A4 打印。
+- **任务名显示为「房间号_姓名」**：打印前把文件复制成同名临时副本再打印，所以打印机队列/屏幕上看到的是 `301_张三.docx`，方便取件时辨认。同房间同姓名多个文件会自动加序号（`301_张三_2.docx`）。网页上仍显示原始文件名。
+- 上传的文件若本身是 A3 版式，也会被强制按 A4 输出。
 
 ### 学校教师卡打印（刷卡取件）
 

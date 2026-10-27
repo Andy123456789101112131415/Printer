@@ -376,9 +376,8 @@ def printer_set_default():
 def admin_room_print(room):
     check_csrf()
     printer = (request.form.get("printer") or "").strip() or None
-    separator = request.form.get("separator") == "1"
     conn = get_db()
-    # 按姓名分组排序，同一个人文件相邻，便于取件后分拣
+    # 按姓名分组排序，同一个人文件相邻
     rows = conn.execute(
         "SELECT * FROM files WHERE room = ? ORDER BY name, created_at, id", (room,)
     ).fetchall()
@@ -392,22 +391,20 @@ def admin_room_print(room):
         return render_template("admin_room.html", room=room, files=rows,
                                default_printer=get_setting("default_printer", ""))
 
+    # 同一房间同一姓名有多个文件时加序号，避免任务名重复
+    name_counter = {}
     for row in rows:
         path = UPLOAD_DIR / row["stored_name"]
         if not path.is_file():
             results.append((row["original_name"], False, "文件丢失"))
             continue
-        if separator:
-            ok, msg = printlib.print_cover(
-                [f"房间: {row['room']}",
-                 f"姓名: {row['name']}",
-                 f"文件: {row['original_name']}",
-                 f"上传: {row['created_at']}"],
-                printer)
-            if not ok:
-                results.append((f"[分隔页] {row['original_name']}", False, msg))
-        ok, msg = printlib.print_file(path, printer)
-        results.append((row["original_name"], ok, msg))
+
+        base = f"{row['room']}_{row['name']}"
+        name_counter[base] = name_counter.get(base, 0) + 1
+        job_name = base if name_counter[base] == 1 else f"{base}_{name_counter[base]}"
+
+        ok, msg = printlib.print_file_as(path, job_name, printer)
+        results.append((f"{job_name}{Path(row['stored_name']).suffix}", ok, msg))
 
     ok_count = sum(1 for r in results if r[1])
     if ok_count == len(results):

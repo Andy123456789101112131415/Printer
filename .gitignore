@@ -15,6 +15,9 @@ __pycache__/
 打印站迁移包/
 打印站迁移包.zip
 
+# 第三方便携工具（体积大，随迁移包分发）
+tools/
+
 # 系统
 Thumbs.db
 .DS_Store

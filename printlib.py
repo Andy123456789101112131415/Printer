@@ -7,7 +7,9 @@
   其次 Adobe Reader，最后回退到 Edge / 系统打印。
 """
 
+import contextlib
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -34,6 +36,28 @@ def _dispatch(app_name):
         raise RuntimeError("缺少 pywin32，请先执行: pip install pywin32") from exc
     import win32com.client
     return win32com.client.Dispatch(app_name)
+
+
+@contextlib.contextmanager
+def _com():
+    """在调用线程初始化 COM。
+
+    Flask/waitress 是多线程的，每个线程都必须单独 CoInitialize，
+    否则会随机报 "尚未调用 CoInitialize"。
+    """
+    try:
+        import pythoncom
+        pythoncom.CoInitialize()
+    except Exception:
+        yield
+        return
+    try:
+        yield
+    finally:
+        try:
+            pythoncom.CoUninitialize()
+        except Exception:
+            pass
 
 
 def _find_sumatra():
@@ -77,6 +101,10 @@ def _find_edge():
 
 # ---------------------------------------------------------------- 打印 ----
 
+WD_PAPER_A4 = 7     # Word WdPaperSize.wdPaperA4
+XL_PAPER_A4 = 9     # Excel XlPaperSize.xlPaperA4
+
+
 def _print_word(path, printer=None):
     word = _dispatch("Word.Application")
     word.Visible = False
@@ -86,10 +114,11 @@ def _print_word(path, printer=None):
             word.ActivePrinter = printer
         doc = word.Documents.Open(str(path), ReadOnly=True, ConfirmConversions=False)
         try:
+            doc.PageSetup.PaperSize = WD_PAPER_A4
             doc.PrintOut(Background=False)
         finally:
             doc.Close(False)
-        return True, "Word 打印成功"
+        return True, "Word 打印成功（A4）"
     except Exception as exc:
         return False, f"Word 打印失败: {exc}"
     finally:
@@ -106,13 +135,18 @@ def _print_excel(path, printer=None):
     try:
         wb = xl.Workbooks.Open(str(path), ReadOnly=True)
         try:
+            for ws in wb.Worksheets:
+                try:
+                    ws.PageSetup.PaperSize = XL_PAPER_A4
+                except Exception:
+                    pass
             if printer:
                 wb.PrintOut(ActivePrinter=printer)
             else:
                 wb.PrintOut()
         finally:
             wb.Close(False)
-        return True, "Excel 打印成功"
+        return True, "Excel 打印成功（A4）"
     except Exception as exc:
         return False, f"Excel 打印失败: {exc}"
     finally:
@@ -123,16 +157,19 @@ def _print_excel(path, printer=None):
 
 
 def _print_powerpoint(path, printer=None):
+    """PowerPoint 无法直接设置纸张，先导出 PDF 再按 A4 打印。"""
     ppt = _dispatch("PowerPoint.Application")
+    tmp_dir = tempfile.mkdtemp(prefix="ppt2pdf_")
     try:
-        if printer:
-            ppt.ActivePrinter = printer
         pres = ppt.Presentations.Open(str(path), WithWindow=False)
         try:
-            pres.PrintOut()
+            pdf = str(Path(tmp_dir) / (Path(path).stem + ".pdf"))
+            pres.SaveAs(pdf, 32)  # ppSaveAsPDF
         finally:
             pres.Close()
-        return True, "PowerPoint 打印成功"
+        if not os.path.isfile(pdf):
+            return False, "PowerPoint 转 PDF 失败"
+        return _print_pdf(pdf, printer)
     except Exception as exc:
         return False, f"PowerPoint 打印失败: {exc}"
     finally:
@@ -140,6 +177,7 @@ def _print_powerpoint(path, printer=None):
             ppt.Quit()
         except Exception:
             pass
+        shutil.rmtree(tmp_dir, ignore_errors=True)
 
 
 def _shell_print(path, printer=None):
@@ -186,12 +224,13 @@ def _print_pdf(path, printer=None):
             args += ["-print-to", printer]
         else:
             args += ["-print-to-default"]
+        args += ["-print-settings", "paper=A4,fit"]
         args.append(str(path))
         try:
             subprocess.Popen(args, stdout=subprocess.DEVNULL,
                              stderr=subprocess.DEVNULL,
                              creationflags=subprocess.CREATE_NO_WINDOW)
-            return True, "SumatraPDF 打印成功"
+            return True, "已按 A4 打印"
         except Exception as exc:
             return False, f"SumatraPDF 调用失败: {exc}"
 
@@ -204,7 +243,7 @@ def _print_pdf(path, printer=None):
             subprocess.Popen(args, stdout=subprocess.DEVNULL,
                              stderr=subprocess.DEVNULL,
                              creationflags=subprocess.CREATE_NO_WINDOW)
-            return True, "Adobe Reader 打印成功"
+            return True, "Adobe Reader 打印成功（纸张取决于打印机默认 A4）"
         except Exception as exc:
             return False, f"Adobe 调用失败: {exc}"
 
@@ -225,8 +264,7 @@ def printer_exists(name):
         return True
 
 
-def print_file(path, printer=None):
-    """打印单个文件。返回 (成功与否, 描述)。"""
+def _print_file_inner(path, printer=None):
     ext = ext_of(path)
     if ext in OFFICE_DOC_EXTS:
         return _print_word(path, printer)
@@ -241,23 +279,35 @@ def print_file(path, printer=None):
     return False, f"不支持的文件类型: {ext or '(无扩展名)'}"
 
 
-def print_cover(text_lines, printer=None):
-    """打印一页分隔封面（含中文）。
+def print_file(path, printer=None):
+    """打印单个文件（A4）。返回 (成功与否, 描述)。"""
+    with _com():
+        return _print_file_inner(path, printer)
 
-    通过 Word 打印一份带 UTF-8 BOM 的纯文本，避免编码对话框。
+
+def _safe_job_name(name):
+    """打印任务名去掉 Windows 文件名非法字符。"""
+    cleaned = re.sub(r'[<>:"/\\|?*\r\n\t]', "", str(name)).strip()
+    return cleaned or "print"
+
+
+def print_file_as(src, job_name, printer=None):
+    """以指定名字（用于打印机端识别）打印文件，统一 A4。
+
+    通过复制成同名临时副本实现：Office/PDF/图片进队列时任务名即为该名字。
     返回 (成功与否, 描述)。
     """
-    fd, tmp = tempfile.mkstemp(suffix=".txt")
-    os.close(fd)
+    src = Path(src)
+    ext = src.suffix.lower()
+    tmp_dir = tempfile.mkdtemp(prefix="printjob_")
     try:
-        with open(tmp, "w", encoding="utf-8-sig") as f:
-            f.write("\n\n" + "\n".join(text_lines) + "\n")
-        return _print_word(tmp, printer)
+        tmp = Path(tmp_dir) / (_safe_job_name(job_name) + ext)
+        shutil.copy2(src, tmp)
+        return print_file(tmp, printer)
+    except Exception as exc:
+        return False, f"打印失败: {exc}"
     finally:
-        try:
-            os.remove(tmp)
-        except OSError:
-            pass
+        shutil.rmtree(tmp_dir, ignore_errors=True)
 
 
 # ------------------------------------------------------------ 转 PDF ----
@@ -268,6 +318,11 @@ def convert_to_pdf(src: Path, out_dir: Path):
     返回 PDF 的 Path；已是 PDF / 图片时直接返回原路径（图片由浏览器直接显示）；
     转换失败返回 None。
     """
+    with _com():
+        return _convert_to_pdf_inner(src, out_dir)
+
+
+def _convert_to_pdf_inner(src: Path, out_dir: Path):
     ext = ext_of(src)
     if ext in PDF_EXTS or ext in IMAGE_EXTS:
         return src
