@@ -73,8 +73,12 @@ def ensure_dirs():
 
 
 def get_db():
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=15)
     conn.row_factory = sqlite3.Row
+    # WAL 模式 + 忙等待：避免多人同时上传时 "database is locked"
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA busy_timeout=15000")
+    conn.execute("PRAGMA synchronous=NORMAL")
     return conn
 
 
