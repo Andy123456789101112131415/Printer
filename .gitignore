@@ -21,3 +21,6 @@ tools/
 # 系统
 Thumbs.db
 .DS_Store
+
+# 日志
+*.log
