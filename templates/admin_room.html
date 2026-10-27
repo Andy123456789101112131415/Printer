@@ -24,6 +24,7 @@
   </form>
 </div>
 <p class="muted">学校刷卡打印提示：选学校打印机 → 点「服务器直接打印」→ 打印完成后到打印机刷教师卡取件。</p>
+<div id="printer-warn" class="flash error" style="display:none"></div>
 
 {% if print_results %}
 <div class="card">
@@ -71,6 +72,11 @@ fetch("{{ url_for('admin_printers') }}").then(function(r){return r.json();}).the
     if (p === def) o.selected = true;
     sel.appendChild(o);
   });
+  if (def && (d.printers || []).indexOf(def) === -1) {
+    var w = document.getElementById("printer-warn");
+    w.style.display = "block";
+    w.textContent = "⚠ 默认打印机「" + def + "」当前不可用（可能没连校园网或打印机离线）。请检查后重新选择打印机。";
+  }
 }).catch(function(){});
 </script>
 {% endblock %}

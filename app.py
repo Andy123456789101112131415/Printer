@@ -385,6 +385,13 @@ def admin_room_print(room):
     conn.close()
 
     results = []
+
+    # 打印前确认目标打印机存在，避免"提交了却没反应"的困惑
+    if printer and not printlib.printer_exists(printer):
+        flash(f"打印机「{printer}」当前不可用（可能没连校园网或已离线），请检查后重试。", "error")
+        return render_template("admin_room.html", room=room, files=rows,
+                               default_printer=get_setting("default_printer", ""))
+
     for row in rows:
         path = UPLOAD_DIR / row["stored_name"]
         if not path.is_file():

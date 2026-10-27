@@ -211,6 +211,20 @@ def _print_pdf(path, printer=None):
     return _print_pdf_edge(path)
 
 
+def printer_exists(name):
+    """检查打印机当前是否在系统中可用（网络打印机未连线时会返回 False）。"""
+    if not name:
+        return False
+    try:
+        import win32print
+        printers = [p[2] for p in win32print.EnumPrinters(
+            win32print.PRINTER_ENUM_LOCAL | win32print.PRINTER_ENUM_CONNECTIONS)]
+        return name in printers
+    except Exception:
+        # 无法枚举时不做阻断，交由实际打印流程报错
+        return True
+
+
 def print_file(path, printer=None):
     """打印单个文件。返回 (成功与否, 描述)。"""
     ext = ext_of(path)
