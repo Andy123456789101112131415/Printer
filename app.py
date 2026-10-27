@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
-"""打印站 Flask 应用。
+"""Print Station Flask application.
 
-功能：
-- 用户选择房间号、姓名并上传文件（支持多选）
-- 管理员登录后按房间查看、下载、删除文件
-- 按房间批量打印：打印视图（浏览器打印）或服务器直接打印
+Features:
+- Users select a room, enter their name, and upload one or more files.
+- Administrators can view, download, and delete files by room.
+- Administrators can print a room using browser printing or direct server printing.
 """
 
 import mimetypes
@@ -34,7 +34,7 @@ ALLOWED_EXTENSIONS = {
     ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".tif", ".tiff", ".webp",
 }
 
-MAX_CONTENT_LENGTH = 100 * 1024 * 1024  # 单次请求最大 100MB
+MAX_CONTENT_LENGTH = 100 * 1024 * 1024  # 100 MB per request
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = MAX_CONTENT_LENGTH
@@ -75,7 +75,7 @@ def ensure_dirs():
 def get_db():
     conn = sqlite3.connect(DB_PATH, timeout=15)
     conn.row_factory = sqlite3.Row
-    # WAL 模式 + 忙等待：避免多人同时上传时 "database is locked"
+    # WAL mode and a busy timeout reduce "database is locked" errors during concurrent uploads.
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA busy_timeout=15000")
     conn.execute("PRAGMA synchronous=NORMAL")
@@ -128,7 +128,7 @@ def set_setting(key, value):
     conn.close()
 
 
-# ---------------------------------------------------------------- 工具 ----
+# ---------------------------------------------------------------- Helpers ----
 
 def login_required(view):
     @wraps(view)
@@ -150,7 +150,7 @@ def csrf_token():
 def check_csrf():
     token = session.get("_csrf")
     if not token or not secrets.compare_digest(str(token), request.form.get("_csrf", "")):
-        abort(400, "CSRF 校验失败，请刷新页面重试")
+        abort(400, "CSRF validation failed. Refresh the page and try again.")
 
 
 def clean_room(raw):
@@ -192,7 +192,7 @@ def _serve(file_id, as_attachment):
 app.jinja_env.globals["csrf_token"] = csrf_token
 
 
-# ------------------------------------------------------------ 上传 ----
+# ------------------------------------------------------------ Uploads ----
 
 @app.route("/")
 def index():
@@ -208,16 +208,16 @@ def upload():
         files = request.files.getlist("files")
 
         if not room:
-            flash("请选择房间号", "error")
+            flash("Please select a room.", "error")
             return render_template("upload.html", rooms=rooms), 400
         if room not in rooms:
-            flash("房间不存在，请选择列表中的房间", "error")
+            flash("That room does not exist. Please select a room from the list.", "error")
             return render_template("upload.html", rooms=rooms), 400
         if not name:
-            flash("请填写姓名", "error")
+            flash("Please enter your name.", "error")
             return render_template("upload.html", rooms=rooms), 400
         if not files or all(not f.filename for f in files):
-            flash("请选择要上传的文件", "error")
+            flash("Please select at least one file to upload.", "error")
             return render_template("upload.html", rooms=rooms), 400
 
         saved, errors = [], []
@@ -229,7 +229,7 @@ def upload():
                 original = Path(f.filename).name
                 ext = Path(original).suffix.lower()
                 if ext not in ALLOWED_EXTENSIONS:
-                    errors.append(f"{original}：不支持的文件类型")
+                    errors.append(f"{original}: This file type is not supported.")
                     continue
                 stored = f"{secrets.token_hex(16)}{ext}"
                 f.save(UPLOAD_DIR / stored)
@@ -245,7 +245,7 @@ def upload():
             conn.close()
 
         if saved:
-            flash(f"已上传 {len(saved)} 个文件到房间 {room}", "ok")
+            flash(f"Uploaded {len(saved)} file(s) to room {room}.", "ok")
         for e in errors:
             flash(e, "error")
         return redirect(url_for("upload"))
@@ -253,7 +253,7 @@ def upload():
     return render_template("upload.html", rooms=rooms)
 
 
-# ------------------------------------------------------------ 管理 ----
+# ------------------------------------------------------------ Administration ----
 
 @app.route("/admin/login", methods=["GET", "POST"])
 def admin_login():
@@ -262,7 +262,7 @@ def admin_login():
         if request.form.get("password") == admin_password():
             session["is_admin"] = True
             return redirect(url_for("admin_rooms"))
-        flash("密码错误", "error")
+        flash("Incorrect password.", "error")
     return render_template("admin_login.html")
 
 
@@ -305,18 +305,18 @@ def room_add():
     check_csrf()
     name = clean_room(request.form.get("room", ""))
     if not name:
-        flash("房间号不能为空", "error")
+        flash("Room name cannot be empty.", "error")
         return redirect(url_for("admin_rooms"))
     conn = get_db()
     try:
         exists = conn.execute("SELECT 1 FROM rooms WHERE name = ?", (name,)).fetchone()
         if exists:
-            flash(f"房间 {name} 已存在", "error")
+            flash(f"Room {name} already exists.", "error")
         else:
             conn.execute("INSERT INTO rooms (name, created_at) VALUES (?, ?)",
                          (name, now_str()))
             conn.commit()
-            flash(f"已添加房间 {name}", "ok")
+            flash(f"Added room {name}.", "ok")
     finally:
         conn.close()
     return redirect(url_for("admin_rooms"))
@@ -338,7 +338,7 @@ def room_delete(room):
             (PREVIEW_DIR / f"{Path(row['stored_name']).stem}.pdf").unlink(missing_ok=True)
         except OSError:
             pass
-    flash(f"已删除房间 {room} 及其 {len(rows)} 个文件", "ok")
+    flash(f"Deleted room {room} and its {len(rows)} file(s).", "ok")
     return redirect(url_for("admin_rooms"))
 
 
@@ -364,10 +364,10 @@ def printer_set_default():
     printer = (request.form.get("printer") or "").strip()
     if printer:
         set_setting("default_printer", printer)
-        flash(f"已将默认打印打印机设为：{printer}", "ok")
+        flash(f"Set {printer} as the default printer.", "ok")
     else:
         set_setting("default_printer", "")
-        flash("已清除默认打印打印机，将使用系统默认打印机", "ok")
+        flash("Cleared the saved printer. The system default printer will be used.", "ok")
     return redirect(request.referrer or url_for("admin_rooms"))
 
 
@@ -377,7 +377,7 @@ def admin_room_print(room):
     check_csrf()
     printer = (request.form.get("printer") or "").strip() or None
     conn = get_db()
-    # 按姓名分组排序，同一个人文件相邻
+    # Sort by name so each person's files are grouped together.
     rows = conn.execute(
         "SELECT * FROM files WHERE room = ? ORDER BY name, created_at, id", (room,)
     ).fetchall()
@@ -385,18 +385,18 @@ def admin_room_print(room):
 
     results = []
 
-    # 打印前确认目标打印机存在，避免"提交了却没反应"的困惑
+    # Check that the selected printer is available before submitting jobs.
     if printer and not printlib.printer_exists(printer):
-        flash(f"打印机「{printer}」当前不可用（可能没连校园网或已离线），请检查后重试。", "error")
+        flash(f"Printer \"{printer}\" is unavailable. Check your school network connection or printer status, then try again.", "error")
         return render_template("admin_room.html", room=room, files=rows,
                                default_printer=get_setting("default_printer", ""))
 
-    # 同一房间同一姓名有多个文件时加序号，避免任务名重复
+    # Add a numeric suffix when the same room and name have multiple files.
     name_counter = {}
     for row in rows:
         path = UPLOAD_DIR / row["stored_name"]
         if not path.is_file():
-            results.append((row["original_name"], False, "文件丢失"))
+            results.append((row["original_name"], False, "File is missing."))
             continue
 
         base = f"{row['room']}_{row['name']}"
@@ -408,9 +408,9 @@ def admin_room_print(room):
 
     ok_count = sum(1 for r in results if r[1])
     if ok_count == len(results):
-        flash(f"打印完成：成功 {ok_count}/{len(results)} 个。已提交到打印队列，请到打印机刷教师卡取件。", "ok")
+        flash(f"Printing complete: {ok_count}/{len(results)} file(s) submitted. Swipe your teacher card at the printer to release the jobs.", "ok")
     else:
-        flash(f"打印完成：成功 {ok_count}/{len(results)} 个（部分失败）。成功的已提交，请到打印机刷教师卡取件。", "error")
+        flash(f"Printing complete: {ok_count}/{len(results)} file(s) succeeded; some files failed. Successful jobs were submitted. Swipe your teacher card at the printer to release them.", "error")
     return render_template("admin_room.html", room=room, files=rows,
                            default_printer=get_setting("default_printer", ""),
                            print_results=results)
@@ -449,7 +449,7 @@ def admin_room_printview(room):
     return render_template("print_view.html", room=room, items=items)
 
 
-# ------------------------------------------------------------ 文件 ----
+# ------------------------------------------------------------ Files ----
 
 @app.route("/file/<int:file_id>")
 @login_required
@@ -474,7 +474,7 @@ def file_preview(file_id):
     if not pdf.is_file():
         converted = printlib.convert_to_pdf(src, PREVIEW_DIR)
         if not converted or not converted.is_file() or Path(converted).suffix.lower() != ".pdf":
-            abort(415, "无法生成预览")
+            abort(415, "Unable to generate a preview.")
         pdf = converted
     return send_file(pdf, mimetype="application/pdf", as_attachment=False)
 
@@ -497,14 +497,14 @@ def file_delete(file_id):
         (PREVIEW_DIR / f"{Path(row['stored_name']).stem}.pdf").unlink(missing_ok=True)
     except OSError:
         pass
-    flash(f"已删除 {row['original_name']}", "ok")
+    flash(f"Deleted {row['original_name']}.", "ok")
     return redirect(url_for("admin_room", room=room))
 
 
 @app.errorhandler(413)
 def too_large(_e):
     return render_template("upload.html", rooms=get_room_names(),
-                           error="文件太大，单次请求最大 100MB"), 413
+                           error="File is too large. The maximum request size is 100 MB."), 413
 
 
 init_db()
@@ -512,10 +512,10 @@ init_db()
 if __name__ == "__main__":
     pw = admin_password()
     print("=" * 62)
-    print("  打印站已启动")
-    print(f"  管理入口: http://127.0.0.1:5000/admin")
+    print("  Print Station is running")
+    print("  Admin login: http://127.0.0.1:5000/admin")
     if pw == "admin123":
-        print("  [警告] 正在使用默认管理密码 admin123，请设置环境变量 ADMIN_PASSWORD 修改")
+        print("  [WARNING] The default admin password is in use. Set the ADMIN_PASSWORD environment variable.")
     print("=" * 62)
     try:
         from waitress import serve

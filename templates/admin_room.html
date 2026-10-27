@@ -1,34 +1,34 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="topbar">
-  <h1>房间：{{ room }}</h1>
-  <div><a href="{{ url_for('admin_rooms') }}">返回列表</a></div>
+  <h1>Room: {{ room }}</h1>
+  <div><a href="{{ url_for('admin_rooms') }}">Back to Rooms</a></div>
 </div>
 
 <div class="actions card">
-  <a class="button" href="{{ url_for('admin_room_printview', room=room) }}" target="_blank">打印视图（浏览器打印）</a>
+  <a class="button" href="{{ url_for('admin_room_printview', room=room) }}" target="_blank">Print View (Browser Printing)</a>
   <form method="post" action="{{ url_for('admin_room_print', room=room) }}">
     <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-    <label>打印机
+    <label>Printer
       <select name="printer" id="printer-select" data-default="{{ default_printer }}">
-        <option value="">默认打印机</option>
+        <option value="">System Default Printer</option>
       </select>
     </label>
-    <label class="chk">以下文件将按 A4 打印</label>
-    <button type="submit" class="danger">服务器直接打印整间房</button>
+    <label class="chk">Files will be printed on A4 paper</label>
+    <button type="submit" class="danger">Print All Files in This Room</button>
   </form>
   <form method="post" action="{{ url_for('printer_set_default') }}" class="inline set-default">
     <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
     <input type="hidden" name="printer" id="set-default-value">
-    <button type="submit" class="link" onclick="document.getElementById('set-default-value').value = document.getElementById('printer-select').value;">记住当前打印机为默认</button>
+    <button type="submit" class="link" onclick="document.getElementById('set-default-value').value = document.getElementById('printer-select').value;">Remember as Default Printer</button>
   </form>
 </div>
-<p class="muted">学校刷卡打印提示：选学校打印机 → 点「服务器直接打印」→ 打印完成后到打印机刷教师卡取件。全部按 A4 打印，任务名显示为「房间号_姓名」，便于取件时辨认。</p>
+<p class="muted">For school card-release printing: select the school printer, click Print All Files, then swipe your teacher card at the printer to release the jobs. Files are printed on A4 paper, and job names use the format Room_Name.</p>
 <div id="printer-warn" class="flash error" style="display:none"></div>
 
 {% if print_results %}
 <div class="card">
-  <h2>打印结果</h2>
+  <h2>Print Results</h2>
   <ul>
   {% for name, ok, msg in print_results %}
     <li class="{{ 'ok' if ok else 'error' }}">{{ name }}：{{ msg }}</li>
@@ -39,7 +39,7 @@
 
 {% if files %}
 <table>
-  <tr><th>文件名</th><th>上传人</th><th>大小</th><th>时间</th><th>操作</th></tr>
+  <tr><th>File Name</th><th>Uploaded By</th><th>Size</th><th>Time</th><th>Actions</th></tr>
   {% for f in files %}
   <tr>
     <td>{{ f.original_name }}</td>
@@ -47,19 +47,19 @@
     <td>{{ (f.size / 1024) | round(1) }} KB</td>
     <td>{{ f.created_at }}</td>
     <td class="ops">
-      <a href="{{ url_for('file_download', file_id=f.id) }}">下载</a>
-      <a href="{{ url_for('file_inline', file_id=f.id) }}" target="_blank">预览</a>
+      <a href="{{ url_for('file_download', file_id=f.id) }}">Download</a>
+      <a href="{{ url_for('file_inline', file_id=f.id) }}" target="_blank">Preview</a>
       <form method="post" action="{{ url_for('file_delete', file_id=f.id) }}" class="inline"
-            onsubmit="return confirm('确定删除 ' + {{ f.original_name | tojson }} + '？')">
+            onsubmit="return confirm('Delete ' + {{ f.original_name | tojson }} + '?')">
         <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-        <button type="submit" class="link danger-link">删除</button>
+        <button type="submit" class="link danger-link">Delete</button>
       </form>
     </td>
   </tr>
   {% endfor %}
 </table>
 {% else %}
-<p>该房间还没有文件。</p>
+<p>This room has no files yet.</p>
 {% endif %}
 
 <script>
@@ -75,7 +75,7 @@ fetch("{{ url_for('admin_printers') }}").then(function(r){return r.json();}).the
   if (def && (d.printers || []).indexOf(def) === -1) {
     var w = document.getElementById("printer-warn");
     w.style.display = "block";
-    w.textContent = "⚠ 默认打印机「" + def + "」当前不可用（可能没连校园网或打印机离线）。请检查后重新选择打印机。";
+    w.textContent = "⚠ The default printer \"" + def + "\" is currently unavailable. Check your school network connection or printer status, then select a printer again.";
   }
 }).catch(function(){});
 </script>

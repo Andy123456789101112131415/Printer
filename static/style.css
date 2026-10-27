@@ -1,6 +1,6 @@
 :root { --primary:#2563eb; --danger:#dc2626; --ok:#16a34a; --bg:#f1f5f9; --card:#fff; --text:#0f172a; }
 * { box-sizing: border-box; }
-body { margin:0; font-family:"Microsoft YaHei","PingFang SC",sans-serif; background:var(--bg); color:var(--text); line-height:1.6; }
+body { margin:0; font-family:"Segoe UI",Arial,sans-serif; background:var(--bg); color:var(--text); line-height:1.6; }
 .container { max-width: 880px; margin:0 auto; padding:24px 16px 60px; }
 h1 { font-size:22px; margin:8px 0 16px; }
 h2 { font-size:17px; }

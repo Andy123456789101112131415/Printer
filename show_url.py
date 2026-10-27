@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
-"""查询 cpolar 当前公网地址。
+"""Show the current public cpolar URL.
 
-用法: python show_url.py
-前提: cpolar 隧道正在运行 (启动打印站.bat 或 cpolar http 5000)
+Usage: python show_url.py
+Prerequisite: the cpolar tunnel must be running (start the startup batch file or run cpolar http 5000).
 """
 
 import json
@@ -16,24 +16,24 @@ def main():
         resp = urllib.request.urlopen(
             "http://127.0.0.1:4040/http/in", timeout=5).read().decode("utf-8", "replace")
     except Exception:
-        print("查不到隧道：请先运行「启动打印站.bat」")
+        print("Tunnel not found. Start the startup batch file first.")
         return 1
 
     m = re.search(r'window\.data = JSON\.parse\("((?:[^"\\]|\\.)*)"\)', resp)
     if not m:
-        print("未找到隧道信息，请确认 cpolar 正在运行")
+        print("Tunnel information not found. Check that cpolar is running.")
         return 1
 
     try:
-        text = json.loads('"' + m.group(1) + '"')   # 先还原被 JSON 转义的字符串
+        text = json.loads('"' + m.group(1) + '"')   # Restore the JSON-escaped string.
         data = json.loads(text)
     except Exception:
-        print("解析失败，请稍后重试")
+        print("Failed to parse tunnel information. Please try again.")
         return 1
 
     tunnels = data.get("UiState", {}).get("Tunnels", [])
     if not tunnels:
-        # 兜底：从请求历史里找
+        # Fall back to the request history.
         tunnels = [txn.get("ConnCtx", {}).get("Tunnel", {})
                    for txn in data.get("Txns", [])]
 
@@ -44,10 +44,10 @@ def main():
             urls.add(url)
 
     if not urls:
-        print("隧道尚未建立，请稍等几秒后重试")
+        print("The tunnel is not ready yet. Wait a few seconds and try again.")
         return 1
 
-    print("当前公网地址：")
+    print("Current public URL(s):")
     for u in sorted(urls):
         print("  " + u)
     return 0

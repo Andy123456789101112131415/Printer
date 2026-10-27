@@ -1,11 +1,11 @@
 {% extends "base.html" %}
 {% block content %}
-<h1>管理员登录</h1>
+<h1>Admin Login</h1>
 <form method="post" class="card">
   <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-  <label>密码
+  <label>Password
     <input type="password" name="password" required autofocus>
   </label>
-  <button type="submit">登录</button>
+  <button type="submit">Log In</button>
 </form>
 {% endblock %}

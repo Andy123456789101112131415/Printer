@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""服务器看门狗：app.py 意外退出后自动重启，保证服务不中断。"""
+"""Watchdog that automatically restarts app.py if it exits unexpectedly."""
 
 import subprocess
 import sys

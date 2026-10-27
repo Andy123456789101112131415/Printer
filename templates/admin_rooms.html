@@ -1,24 +1,24 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="topbar">
-  <h1>房间管理</h1>
+  <h1>Room Management</h1>
   <form method="post" action="{{ url_for('admin_logout') }}" class="inline">
     <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-    <button type="submit" class="link">退出登录</button>
+    <button type="submit" class="link">Log Out</button>
   </form>
 </div>
 
 <form method="post" action="{{ url_for('room_add') }}" class="card add-room">
   <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-  <label>添加房间号
-    <input name="room" required placeholder="例如：301 或 3栋301">
+  <label>Add Room
+    <input name="room" required placeholder="For example: 301 or Building 3, Room 301">
   </label>
-  <button type="submit">添加</button>
+  <button type="submit">Add Room</button>
 </form>
 
 {% if rooms %}
 <table>
-  <tr><th>房间号</th><th>文件数</th><th>总大小</th><th>最近上传</th><th>操作</th></tr>
+  <tr><th>Room</th><th>Files</th><th>Total Size</th><th>Last Upload</th><th>Actions</th></tr>
   {% for r in rooms %}
   <tr>
     <td>{{ r.room }}</td>
@@ -26,18 +26,18 @@
     <td>{{ (r.total / 1048576) | round(1) }} MB</td>
     <td>{{ r.last or '—' }}</td>
     <td class="ops">
-      <a href="{{ url_for('admin_room', room=r.room) }}">进入</a>
+      <a href="{{ url_for('admin_room', room=r.room) }}">Open</a>
       <form method="post" action="{{ url_for('room_delete', room=r.room) }}" class="inline"
-            onsubmit="return confirm('确定删除房间 ' + {{ r.room | tojson }} + '？将一并删除其中 ' + {{ r.cnt }} + ' 个文件')">
+            onsubmit="return confirm('Delete room ' + {{ r.room | tojson }} + '? This will also delete ' + {{ r.cnt }} + ' files.')">
         <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-        <button type="submit" class="link danger-link">删除</button>
+        <button type="submit" class="link danger-link">Delete</button>
       </form>
     </td>
   </tr>
   {% endfor %}
 </table>
 {% else %}
-<p>还没有房间，请在上方添加。</p>
+<p>No rooms yet. Add one above.</p>
 {% endif %}
-<p class="muted"><a href="{{ url_for('upload') }}">去上传页</a></p>
+<p class="muted"><a href="{{ url_for('upload') }}">Go to Upload Page</a></p>
 {% endblock %}

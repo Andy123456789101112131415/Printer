@@ -1,10 +1,10 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
 <meta charset="utf-8">
-<title>打印视图 - {{ room }}</title>
+<title>Print View - {{ room }}</title>
 <style>
-  body { font-family: "Microsoft YaHei", "PingFang SC", sans-serif; margin: 0; }
+  body { font-family: "Segoe UI", Arial, sans-serif; margin: 0; }
   .page { padding: 16px; page-break-after: always; }
   .header { display: flex; justify-content: space-between; align-items: center;
             border-bottom: 1px solid #ccc; padding-bottom: 6px; margin-bottom: 10px; }
@@ -21,7 +21,7 @@
 </head>
 <body>
 <div class="no-print" style="padding:10px;background:#f5f5f5;border-bottom:1px solid #ccc;">
-  共 {{ items|length }} 个文件 · 请按 <b>Ctrl+P</b> 打印，纸张方向/缩放/页边距可在打印设置里调整。
+  {{ items|length }} file(s) · Press <b>Ctrl+P</b> to print. Adjust paper orientation, scaling, and margins in the print settings.
 </div>
 {% for it in items %}
 <div class="page">
@@ -34,9 +34,9 @@
   {% elif it.kind == "pdf" %}
     <iframe src="{{ it.url }}"></iframe>
   {% elif it.kind == "missing" %}
-    <div class="missing">文件已丢失，无法预览</div>
+    <div class="missing">File is missing and cannot be previewed.</div>
   {% else %}
-    <div class="missing">该文件类型无法在线预览，请返回房间页用「服务器直接打印」或下载后打印</div>
+    <div class="missing">This file type cannot be previewed online. Return to the room page to print it, or download it and print locally.</div>
   {% endif %}
 </div>
 {% endfor %}

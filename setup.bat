@@ -29,6 +29,6 @@ if errorlevel 1 (
 echo.
 echo ============================================
 echo   Setup done!
-echo   Next: double-click 启动打印站.bat to start.
+echo   Next: double-click the startup batch file to start the site.
 echo ============================================
 pause

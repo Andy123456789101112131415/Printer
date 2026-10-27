@@ -1,10 +1,11 @@
 # -*- coding: utf-8 -*-
-"""自动保存与推送：监控项目文件变化，静默期过后自动 commit + push。
+"""Automatically commit and push project changes after a quiet period.
 
-用法: python autosave.py [静默秒数，默认 60]
-退出: Ctrl+C
+Usage: python autosave.py [quiet-period-in-seconds, default 60]
+Exit: Ctrl+C
 
-只监控 git 会跟踪/未忽略的文件；uploads、data.db、密钥、迁移包等已被 .gitignore 排除。
+Only Git-tracked or non-ignored files are monitored. Uploads, the database,
+secrets, and the migration package are excluded by .gitignore.
 """
 
 import os
@@ -19,7 +20,7 @@ IGNORE_DIRS = {".git", "uploads", "__pycache__", "打印站迁移包"}
 
 
 def snapshot():
-    """返回项目文件（排除 .gitignore 项）的修改时间签名。"""
+    """Return modification-time signatures for project files, excluding ignored files."""
     sig = []
     for root, dirs, files in os.walk(BASE):
         dirs[:] = [d for d in dirs if d not in IGNORE_DIRS]
@@ -43,28 +44,28 @@ def run(cmd):
 def git_save():
     code, _ = run(["git", "add", "-A"])
     if code != 0:
-        return False, "git add 失败"
+        return False, "git add failed"
     code, out = run(["git", "status", "--porcelain"])
     if code != 0:
-        return False, "git status 失败"
+        return False, "git status failed"
     if not out.strip():
-        return True, "无变更"
-    # 拉取远端（--rebase 避免分叉），失败不阻塞提交
+        return True, "No changes"
+    # Rebase from the remote to avoid diverging branches; continue if the pull fails.
     run(["git", "pull", "--rebase", "origin", "main"])
     ts = time.strftime("%Y-%m-%d %H:%M:%S")
-    code, _ = run(["git", "commit", "-m", f"自动保存 {ts}"])
+    code, _ = run(["git", "commit", "-m", f"Autosave {ts}"])
     if code != 0:
-        return False, "commit 失败（可能无变更）"
+        return False, "Commit failed (possibly because there were no changes)"
     code, _ = run(["git", "push", "origin", "main"])
     if code != 0:
-        return False, "push 失败（检查网络/SSH）"
-    return True, f"已提交并推送 ({ts})"
+        return False, "Push failed (check your network connection and SSH access)"
+    return True, f"Committed and pushed ({ts})"
 
 
 def main():
-    print(f"[autosave] 监控目录: {BASE}")
-    print(f"[autosave] 静默期: {DEBOUNCE} 秒，修改后 {DEBOUNCE} 秒内无新改动则自动提交推送")
-    print("[autosave] Ctrl+C 退出")
+    print(f"[autosave] Watching directory: {BASE}")
+    print(f"[autosave] Quiet period: {DEBOUNCE} seconds; changes are committed and pushed after this period")
+    print("[autosave] Press Ctrl+C to exit")
     last = snapshot()
     pending_since = None
     while True:
@@ -73,7 +74,7 @@ def main():
         if cur != last:
             last = cur
             pending_since = time.time()
-            print(f"[autosave] 检测到修改，{DEBOUNCE} 秒后提交 ...")
+            print(f"[autosave] Changes detected; committing in {DEBOUNCE} seconds ...")
         elif pending_since and time.time() - pending_since >= DEBOUNCE:
             pending_since = None
             ok, msg = git_save()
@@ -84,4 +85,4 @@ if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:
-        print("\n[autosave] 已退出")
+        print("\n[autosave] Exited")
