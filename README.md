@@ -25,18 +25,25 @@ a room.
 
 ## Start the Site
 
+Double-click the [startup batch file](启动打印站.bat). On the first run it
+installs any missing Python packages, creates a unique administrator password,
+starts the website, and prints the password in its console window.
+
+Keep that console window open while the site is in use. To run it manually:
+
 ```powershell
 cd C:\Users\1\Desktop\打印
 pip install -r requirements.txt
-python app.py
+python run.py
 ```
 
 Open <http://127.0.0.1:5000> to upload files or
 <http://127.0.0.1:5000/admin> to sign in as an administrator.
 
-The administrator password is stored locally in `.admin_password`. To change
-it, edit that file or set the `ADMIN_PASSWORD` environment variable before
-starting the application. Do not share or commit the password.
+The administrator password is generated on first run and stored locally in
+`.admin_password`. To change it, edit that file or set the `ADMIN_PASSWORD`
+environment variable before starting the application. Do not share or commit the
+password.
 
 ## Printing
 
@@ -88,6 +95,12 @@ it in the site.
 The configured public address is <https://print123.cpolar.cn>.
 
 Start the site and tunnel by double-clicking the [startup batch file](启动打印站.bat).
+The tunnel starts only when cpolar is installed and an authtoken is configured
+in `%USERPROFILE%\.cpolar\cpolar.yml`; otherwise the site runs locally only.
+
+The reserved name is read from [cpolar-subdomain.txt](cpolar-subdomain.txt).
+Delete that file to let cpolar assign a random public URL instead.
+
 Keep both console windows open, and keep the computer awake and connected to
 the network while the site is in use.
 

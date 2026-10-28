@@ -64,7 +64,17 @@ def admin_password():
         pw = ADMIN_PASSWORD_FILE.read_text(encoding="utf-8").strip()
         if pw:
             return pw
-    return "admin123"
+    # First run: create a unique password instead of shipping a shared default.
+    pw = secrets.token_urlsafe(9)
+    ADMIN_PASSWORD_FILE.write_text(pw, encoding="utf-8")
+    pw = ADMIN_PASSWORD_FILE.read_text(encoding="utf-8").strip() or pw
+    print("=" * 62)
+    print("  First run: a new admin password was generated.")
+    print(f"  Admin password: {pw}")
+    print(f"  Stored in: {ADMIN_PASSWORD_FILE}")
+    print("  Change it by editing that file, then restart the site.")
+    print("=" * 62)
+    return pw
 
 
 def ensure_dirs():
@@ -510,12 +520,14 @@ def too_large(_e):
 init_db()
 
 if __name__ == "__main__":
-    pw = admin_password()
+    admin_password()
     print("=" * 62)
     print("  Print Station is running")
     print("  Admin login: http://127.0.0.1:5000/admin")
-    if pw == "admin123":
-        print("  [WARNING] The default admin password is in use. Set the ADMIN_PASSWORD environment variable.")
+    if os.environ.get("ADMIN_PASSWORD"):
+        print("  Admin password: taken from the ADMIN_PASSWORD environment variable")
+    else:
+        print(f"  Admin password: stored in {ADMIN_PASSWORD_FILE}")
     print("=" * 62)
     try:
         from waitress import serve
