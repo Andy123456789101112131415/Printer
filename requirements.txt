@@ -1,3 +1,4 @@
 flask>=3.0
 waitress>=3.0
 pywin32>=306; sys_platform == "win32"
+pymupdf>=1.24

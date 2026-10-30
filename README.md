@@ -21,8 +21,8 @@ a room.
   automatically when it is missing and an internet connection is available.
 - Microsoft Office (Word, Excel, and PowerPoint) to convert or print Office
   documents. PDFs and images do not need Office.
-- Dependencies installed from `requirements.txt` (Flask, Waitress, and
-  pywin32). The startup file installs them automatically.
+- Dependencies installed from `requirements.txt` (Flask, Waitress, pywin32, and
+  PyMuPDF). The startup file installs them automatically.
 
 ## Start the Site
 
@@ -62,35 +62,36 @@ press `Ctrl+P`. Office documents are converted to PDF for preview.
 Select a printer on the room page (or leave the system default selected), then
 click **Print All Files in This Room**.
 
-- Word, Excel, PowerPoint, TXT, and CSV files are printed or converted using
-  Microsoft Office.
-- Images (PNG, JPG, BMP, GIF, TIFF) are printed with GDI+, which needs no file
-  association and forces A4 with the image fitted to the printable area. WebP
-  images depend on GDI+ support in the installed Windows version.
-- PDFs use the first available option:
-  1. **SumatraPDF**, if `SumatraPDF.exe` is present in `tools\`.
-  2. Adobe Reader, if installed.
-  3. Edge silent printing as a fallback.
+- Word, Excel, TXT, and CSV files are printed through Microsoft Office with A4
+  page settings.
+- PowerPoint slides are exported as images and each slide is printed on one A4
+  page, because PowerPoint cannot set a paper size through automation.
+- PDFs are rendered page by page and printed on A4. SumatraPDF is only used as a
+  fallback when a PDF cannot be rendered, for example when it is password
+  protected or longer than 200 pages.
+- Images (PNG, JPG, BMP, GIF, TIFF) are printed through GDI+, which needs no file
+  association and fits each image to the A4 printable area.
 
 The room page remembers the selected printer when you click
 **Remember as Default Printer**.
 
+Before submitting a job the site checks that the print server answers. If the
+computer is not on the school network, the room page reports that immediately
+instead of waiting for the print queue to time out.
+
 ### Paper Size and Job Names
 
-- Print jobs are configured for A4 where the file format and print backend
-  allow it. Word and Excel use A4 settings, PDFs use SumatraPDF's A4 fit option,
-  PowerPoint files are converted to PDF before printing, and images are drawn
-  onto an A4 GDI+ page.
+- Every format is printed on A4. Word and Excel use A4 page settings, while
+  PowerPoint, PDF, and image jobs are drawn page by page onto A4 with the
+  content scaled to fit.
 - Printer queue job names use `Room_Name` (for example, `301_Alex.docx`). If
   multiple files have the same room and name, a number is added to later jobs.
   The original file names remain visible on the website.
-- Office and image jobs show `Room_Name.ext` in the printer queue. PDF jobs are
-  rendered by SumatraPDF, which labels the job with the temporary file path, so
-  the printer shows something like `...\ps_1a2b3c\301_Alex.pdf`.
+- PowerPoint, PDF, and image jobs show the same clean `Room_Name` in the queue,
+  because the site generates the pages itself.
 - Each file is reported separately. A file is marked successful only when its
-  print backend really accepted the job, for example when SumatraPDF exits with
-  status 0 or Word finishes submitting the document. Failures include the reason,
-  such as a missing printer name or an unavailable driver.
+  print backend really accepted the job. Failures include the reason, such as an
+  unreachable print server or a printing timeout.
 - Some printers and print servers delete jobs from the Windows queue as soon as
   they are transferred to the device, so a job that is waiting at the printer for
   a card swipe may no longer be listed on the computer.
