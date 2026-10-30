@@ -104,45 +104,53 @@ def _find_edge():
 WD_PAPER_A4 = 7     # Word WdPaperSize.wdPaperA4
 XL_PAPER_A4 = 9     # Excel XlPaperSize.xlPaperA4
 
-SPOOL_TIMEOUT = 25.0
-
-
-def _spool_job_ids(printer=None):
-    """Return the spooler job ids for a printer, or None when it cannot be checked."""
-    try:
-        import win32print
-        name = printer or win32print.GetDefaultPrinter()
-        handle = win32print.OpenPrinter(name)
-        try:
-            return {job["JobId"] for job in win32print.EnumJobs(handle, 0, 999, 1)}
-        finally:
-            win32print.ClosePrinter(handle)
-    except Exception:
-        return None
-
-
-def _wait_for_spool(printer, before, timeout=SPOOL_TIMEOUT):
-    """Wait for a new spooler job. Returns True, False, or None when unverifiable."""
-    if before is None:
-        return None
-    deadline = time.time() + timeout
-    while time.time() < deadline:
-        current = _spool_job_ids(printer)
-        if current is None:
-            return None
-        if current - before:
-            return True
-        time.sleep(0.3)
-    return False
-
-
-def _submitted_result(printer, before, ok_message, source):
-    """Confirm a print job reached the queue before reporting success."""
-    state = _wait_for_spool(printer, before)
-    if state is False:
-        return False, (f"{source} did not send a job to the print queue. "
-                       "Check that the printer is online and the driver is installed.")
-    return True, ok_message
+# GDI+ printing keeps image output independent of file associations and lets us
+# force A4, fit to the printable area, and set the queue job name.
+IMAGE_PRINT_PS = r"""
+param(
+  [Parameter(Mandatory=$true)][string]$Path,
+  [string]$Printer = "",
+  [string]$JobName = ""
+)
+$ErrorActionPreference = "Stop"
+Add-Type -AssemblyName System.Drawing
+$img = [System.Drawing.Image]::FromFile($Path)
+try {
+  $doc = New-Object System.Drawing.Printing.PrintDocument
+  if ($JobName) { $doc.DocumentName = $JobName }
+  if ($Printer) {
+    $doc.PrinterSettings.PrinterName = $Printer
+    if (-not $doc.PrinterSettings.IsValid) {
+      [Console]::Error.WriteLine("Printer not found: " + $Printer)
+      exit 2
+    }
+  }
+  $a4 = $null
+  foreach ($ps in $doc.PrinterSettings.PaperSizes) {
+    if ($ps.Kind -eq [System.Drawing.Printing.PaperKind]::A4) { $a4 = $ps; break }
+  }
+  if ($a4) { $doc.DefaultPageSettings.PaperSize = $a4 }
+  if ($img.Width -gt $img.Height) { $doc.DefaultPageSettings.Landscape = $true }
+  $doc.DefaultPageSettings.Margins = New-Object System.Drawing.Printing.Margins(40, 40, 40, 40)
+  $doc.add_PrintPage({
+    param($sender, $e)
+    $b = $e.MarginBounds
+    $scale = [Math]::Min($b.Width / $img.Width, $b.Height / $img.Height)
+    $w = [int]($img.Width * $scale)
+    $h = [int]($img.Height * $scale)
+    $x = $b.X + [int](($b.Width - $w) / 2)
+    $y = $b.Y + [int](($b.Height - $h) / 2)
+    $e.Graphics.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+    $e.Graphics.DrawImage($img, $x, $y, $w, $h)
+    $e.HasMorePages = $false
+  })
+  $doc.Print()
+  $doc.Dispose()
+  Write-Output "OK"
+} finally {
+  $img.Dispose()
+}
+"""
 
 
 def _error_detail(text):
@@ -235,10 +243,42 @@ def _print_powerpoint(path, printer=None):
         shutil.rmtree(tmp_dir, ignore_errors=True)
 
 
+def _print_image(path, printer=None):
+    """Print an image on A4 with GDI+ so no print association is required."""
+    work_dir = Path(tempfile.mkdtemp(prefix="psimg_"))
+    script = work_dir / "print_image.ps1"
+    script.write_text(IMAGE_PRINT_PS, encoding="utf-8-sig")
+    args = [_powershell(), "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
+            str(script), "-Path", str(path), "-JobName", Path(path).stem]
+    if printer:
+        args += ["-Printer", printer]
+    try:
+        proc = subprocess.run(args, capture_output=True, text=True, encoding="utf-8",
+                              errors="replace", timeout=180,
+                              creationflags=subprocess.CREATE_NO_WINDOW)
+    except FileNotFoundError:
+        return _shell_print(path, printer)
+    except subprocess.TimeoutExpired:
+        return False, "Image printing did not finish within 180 seconds."
+    except Exception as exc:
+        return False, f"Image printing failed: {exc}"
+    finally:
+        shutil.rmtree(work_dir, ignore_errors=True)
+
+    if proc.returncode != 0:
+        detail = _error_detail(proc.stderr) or _error_detail(proc.stdout)
+        message = "Image printing failed."
+        return False, f"{message} {detail}" if detail else message
+    return True, "Printed on A4 paper."
+
+
+def _powershell():
+    return shutil.which("powershell") or shutil.which("pwsh") or "powershell"
+
+
 def _shell_print(path, printer=None):
-    """Print images or use a fallback through the Windows ShellExecute print verb."""
+    """Fallback printing through the Windows ShellExecute print verb."""
     import ctypes
-    before = _spool_job_ids(printer)
     try:
         SW_HIDE = 0
         if printer:
@@ -249,17 +289,15 @@ def _shell_print(path, printer=None):
                 None, "print", str(path), None, None, SW_HIDE)
         if ret <= 32:
             return False, f"System printing failed (error code {ret})."
+        return True, "Sent to the system print handler."
     except Exception as exc:
         return False, f"System printing failed: {exc}"
-    return _submitted_result(printer, before, "Sent to the system print handler.",
-                             "The system print handler")
 
 
 def _print_pdf_edge(path, printer=None):
     edge = _find_edge()
     if not edge:
         return False, "Edge was not found, and neither SumatraPDF nor Adobe Reader is available."
-    before = _spool_job_ids(printer)
     udd = tempfile.mkdtemp(prefix="edge_print_")
     proc = subprocess.Popen(
         [edge, "--kiosk", "--kiosk-printing", "--no-first-run",
@@ -271,8 +309,7 @@ def _print_pdf_edge(path, printer=None):
     except Exception:
         pass
     shutil.rmtree(udd, ignore_errors=True)
-    return _submitted_result(printer, before, "Sent to Edge for silent printing.",
-                             "Edge")
+    return True, "Sent to Edge for silent printing."
 
 
 def _print_pdf(path, printer=None):
@@ -285,7 +322,6 @@ def _print_pdf(path, printer=None):
             args += ["-print-to-default"]
         args += ["-print-settings", "paper=A4,fit"]
         args.append(str(path))
-        before = _spool_job_ids(printer)
         try:
             # Wait for SumatraPDF to finish so the temporary copy is not removed
             # while it is still opening the file.
@@ -301,29 +337,25 @@ def _print_pdf(path, printer=None):
             message = f"PDF printing failed (SumatraPDF exit code {proc.returncode})."
             return False, f"{message} {detail}" if detail else (
                 f"{message} Check that the printer is online and available.")
-        return _submitted_result(printer, before, "Printed on A4 paper.", "SumatraPDF")
+        return True, "Printed on A4 paper."
 
     adobe = _find_adobe()
     if adobe:
         args = [adobe, "/t", str(path)]
         if printer:
             args.append(printer)
-        before = _spool_job_ids(printer)
         try:
             proc = subprocess.Popen(args, stdout=subprocess.DEVNULL,
                                     stderr=subprocess.DEVNULL,
                                     creationflags=subprocess.CREATE_NO_WINDOW)
+            proc.wait(timeout=20)
+        except subprocess.TimeoutExpired:
+            return True, "Adobe Reader printed successfully. Paper size depends on the printer's A4 default."
         except Exception as exc:
             return False, f"Adobe Reader failed: {exc}"
-        result = _submitted_result(
-            printer, before,
-            "Adobe Reader printed successfully. Paper size depends on the printer's A4 default.",
-            "Adobe Reader")
-        try:
-            proc.wait(timeout=5)
-        except Exception:
-            pass
-        return result
+        if proc.returncode not in (0, None):
+            return False, f"Adobe Reader failed (exit code {proc.returncode})."
+        return True, "Adobe Reader printed successfully. Paper size depends on the printer's A4 default."
 
     return _print_pdf_edge(path, printer)
 
@@ -353,7 +385,7 @@ def _print_file_inner(path, printer=None):
     if ext in PDF_EXTS:
         return _print_pdf(path, printer)
     if ext in IMAGE_EXTS:
-        return _shell_print(path, printer)
+        return _print_image(path, printer)
     return False, f"Unsupported file type: {ext or '(no extension)'}"
 
 

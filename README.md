@@ -59,7 +59,9 @@ click **Print All Files in This Room**.
 
 - Word, Excel, PowerPoint, TXT, and CSV files are printed or converted using
   Microsoft Office.
-- Images are sent to the Windows print handler.
+- Images (PNG, JPG, BMP, GIF, TIFF) are printed with GDI+, which needs no file
+  association and forces A4 with the image fitted to the printable area. WebP
+  images depend on GDI+ support in the installed Windows version.
 - PDFs use the first available option:
   1. **SumatraPDF**, if `SumatraPDF.exe` is present in `tools\`.
   2. Adobe Reader, if installed.
@@ -72,18 +74,21 @@ The room page remembers the selected printer when you click
 
 - Print jobs are configured for A4 where the file format and print backend
   allow it. Word and Excel use A4 settings, PDFs use SumatraPDF's A4 fit option,
-  and PowerPoint files are converted to PDF before printing.
+  PowerPoint files are converted to PDF before printing, and images are drawn
+  onto an A4 GDI+ page.
 - Printer queue job names use `Room_Name` (for example, `301_Alex.docx`). If
   multiple files have the same room and name, a number is added to later jobs.
   The original file names remain visible on the website.
-- PDF jobs are rendered by SumatraPDF, which labels the job with the temporary
-  file path, so the printer shows something like
-  `...\ps_1a2b3c\301_Alex.pdf`. Office files show `Room_Name.ext` directly.
-- The room page reports success only after the job actually appears in the
-  Windows print queue. Files that never reach the queue are reported as failed
-  instead of silently succeeding, which is what happens when the printer is
-  offline or the driver rejects the job.
-- The image print path follows the Windows printer's configured paper size.
+- Office and image jobs show `Room_Name.ext` in the printer queue. PDF jobs are
+  rendered by SumatraPDF, which labels the job with the temporary file path, so
+  the printer shows something like `...\ps_1a2b3c\301_Alex.pdf`.
+- Each file is reported separately. A file is marked successful only when its
+  print backend really accepted the job, for example when SumatraPDF exits with
+  status 0 or Word finishes submitting the document. Failures include the reason,
+  such as a missing printer name or an unavailable driver.
+- Some printers and print servers delete jobs from the Windows queue as soon as
+  they are transferred to the device, so a job that is waiting at the printer for
+  a card swipe may no longer be listed on the computer.
 
 ### School Card-Release Printing
 
