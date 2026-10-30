@@ -17,19 +17,24 @@ a room.
 
 ## Requirements
 
-- Windows and Python 3.9 or later.
+- Windows and Python 3.9 or later. The startup file installs Python
+  automatically when it is missing and an internet connection is available.
 - Microsoft Office (Word, Excel, and PowerPoint) to convert or print Office
-  documents.
+  documents. PDFs and images do not need Office.
 - Dependencies installed from `requirements.txt` (Flask, Waitress, and
-  pywin32).
+  pywin32). The startup file installs them automatically.
 
 ## Start the Site
 
 Double-click the [startup batch file](启动打印站.bat). On the first run it
-installs any missing Python packages, creates a unique administrator password,
-starts the website, and prints the password in its console window.
+installs Python if needed, installs the Python packages, adds the school printer
+when it is missing, keeps the computer awake, creates a unique administrator
+password, starts the website, and prints the password in its console window.
 
-Keep that console window open while the site is in use. To run it manually:
+Double-click [停止打印站.bat](停止打印站.bat) to stop the website and the
+tunnel.
+
+Keep the console window open while the site is in use. To run it manually:
 
 ```powershell
 cd C:\Users\1\Desktop\打印
