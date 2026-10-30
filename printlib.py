@@ -104,6 +104,61 @@ def _find_edge():
 WD_PAPER_A4 = 7     # Word WdPaperSize.wdPaperA4
 XL_PAPER_A4 = 9     # Excel XlPaperSize.xlPaperA4
 
+SPOOL_TIMEOUT = 25.0
+
+
+def _spool_job_ids(printer=None):
+    """Return the spooler job ids for a printer, or None when it cannot be checked."""
+    try:
+        import win32print
+        name = printer or win32print.GetDefaultPrinter()
+        handle = win32print.OpenPrinter(name)
+        try:
+            return {job["JobId"] for job in win32print.EnumJobs(handle, 0, 999, 1)}
+        finally:
+            win32print.ClosePrinter(handle)
+    except Exception:
+        return None
+
+
+def _wait_for_spool(printer, before, timeout=SPOOL_TIMEOUT):
+    """Wait for a new spooler job. Returns True, False, or None when unverifiable."""
+    if before is None:
+        return None
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        current = _spool_job_ids(printer)
+        if current is None:
+            return None
+        if current - before:
+            return True
+        time.sleep(0.3)
+    return False
+
+
+def _submitted_result(printer, before, ok_message, source):
+    """Confirm a print job reached the queue before reporting success."""
+    state = _wait_for_spool(printer, before)
+    if state is False:
+        return False, (f"{source} did not send a job to the print queue. "
+                       "Check that the printer is online and the driver is installed.")
+    return True, ok_message
+
+
+def _error_detail(text):
+    """Pick an English error line from tool output, skipping benign repair notes."""
+    skip = ("startxref", "repair", "LoadSettings", "ParseTranslations",
+            "Untranslated strings", "Starting SumatraPDF", "GetCommandLineW")
+    for line in (text or "").splitlines():
+        line = line.strip()
+        if not line or not line.isascii() or any(s in line for s in skip):
+            continue
+        low = line.lower()
+        if any(word in low for word in ("error", "failed", "cannot", "could not",
+                                        "not found", "denied", "invalid")):
+            return line
+    return ""
+
 
 def _print_word(path, printer=None):
     word = _dispatch("Word.Application")
@@ -183,6 +238,7 @@ def _print_powerpoint(path, printer=None):
 def _shell_print(path, printer=None):
     """Print images or use a fallback through the Windows ShellExecute print verb."""
     import ctypes
+    before = _spool_job_ids(printer)
     try:
         SW_HIDE = 0
         if printer:
@@ -193,15 +249,17 @@ def _shell_print(path, printer=None):
                 None, "print", str(path), None, None, SW_HIDE)
         if ret <= 32:
             return False, f"System printing failed (error code {ret})."
-        return True, "Sent to the system print handler."
     except Exception as exc:
         return False, f"System printing failed: {exc}"
+    return _submitted_result(printer, before, "Sent to the system print handler.",
+                             "The system print handler")
 
 
-def _print_pdf_edge(path):
+def _print_pdf_edge(path, printer=None):
     edge = _find_edge()
     if not edge:
         return False, "Edge was not found, and neither SumatraPDF nor Adobe Reader is available."
+    before = _spool_job_ids(printer)
     udd = tempfile.mkdtemp(prefix="edge_print_")
     proc = subprocess.Popen(
         [edge, "--kiosk", "--kiosk-printing", "--no-first-run",
@@ -213,7 +271,8 @@ def _print_pdf_edge(path):
     except Exception:
         pass
     shutil.rmtree(udd, ignore_errors=True)
-    return True, "Sent to Edge for silent printing."
+    return _submitted_result(printer, before, "Sent to Edge for silent printing.",
+                             "Edge")
 
 
 def _print_pdf(path, printer=None):
@@ -226,28 +285,47 @@ def _print_pdf(path, printer=None):
             args += ["-print-to-default"]
         args += ["-print-settings", "paper=A4,fit"]
         args.append(str(path))
+        before = _spool_job_ids(printer)
         try:
-            subprocess.Popen(args, stdout=subprocess.DEVNULL,
-                             stderr=subprocess.DEVNULL,
-                             creationflags=subprocess.CREATE_NO_WINDOW)
-            return True, "Printed on A4 paper."
+            # Wait for SumatraPDF to finish so the temporary copy is not removed
+            # while it is still opening the file.
+            proc = subprocess.run(args, capture_output=True, text=True,
+                                  encoding="utf-8", errors="replace", timeout=180,
+                                  creationflags=subprocess.CREATE_NO_WINDOW)
+        except subprocess.TimeoutExpired:
+            return False, "SumatraPDF did not finish printing within 180 seconds."
         except Exception as exc:
             return False, f"SumatraPDF failed: {exc}"
+        if proc.returncode != 0:
+            detail = _error_detail(proc.stdout) or _error_detail(proc.stderr)
+            message = f"PDF printing failed (SumatraPDF exit code {proc.returncode})."
+            return False, f"{message} {detail}" if detail else (
+                f"{message} Check that the printer is online and available.")
+        return _submitted_result(printer, before, "Printed on A4 paper.", "SumatraPDF")
 
     adobe = _find_adobe()
     if adobe:
         args = [adobe, "/t", str(path)]
         if printer:
             args.append(printer)
+        before = _spool_job_ids(printer)
         try:
-            subprocess.Popen(args, stdout=subprocess.DEVNULL,
-                             stderr=subprocess.DEVNULL,
-                             creationflags=subprocess.CREATE_NO_WINDOW)
-            return True, "Adobe Reader printed successfully. Paper size depends on the printer's A4 default."
+            proc = subprocess.Popen(args, stdout=subprocess.DEVNULL,
+                                    stderr=subprocess.DEVNULL,
+                                    creationflags=subprocess.CREATE_NO_WINDOW)
         except Exception as exc:
             return False, f"Adobe Reader failed: {exc}"
+        result = _submitted_result(
+            printer, before,
+            "Adobe Reader printed successfully. Paper size depends on the printer's A4 default.",
+            "Adobe Reader")
+        try:
+            proc.wait(timeout=5)
+        except Exception:
+            pass
+        return result
 
-    return _print_pdf_edge(path)
+    return _print_pdf_edge(path, printer)
 
 
 def printer_exists(name):
@@ -299,7 +377,7 @@ def print_file_as(src, job_name, printer=None):
     """
     src = Path(src)
     ext = src.suffix.lower()
-    tmp_dir = tempfile.mkdtemp(prefix="printjob_")
+    tmp_dir = tempfile.mkdtemp(prefix="ps_")
     try:
         tmp = Path(tmp_dir) / (_safe_job_name(job_name) + ext)
         shutil.copy2(src, tmp)

@@ -76,6 +76,13 @@ The room page remembers the selected printer when you click
 - Printer queue job names use `Room_Name` (for example, `301_Alex.docx`). If
   multiple files have the same room and name, a number is added to later jobs.
   The original file names remain visible on the website.
+- PDF jobs are rendered by SumatraPDF, which labels the job with the temporary
+  file path, so the printer shows something like
+  `...\ps_1a2b3c\301_Alex.pdf`. Office files show `Room_Name.ext` directly.
+- The room page reports success only after the job actually appears in the
+  Windows print queue. Files that never reach the queue are reported as failed
+  instead of silently succeeding, which is what happens when the printer is
+  offline or the driver rejects the job.
 - The image print path follows the Windows printer's configured paper size.
 
 ### School Card-Release Printing
