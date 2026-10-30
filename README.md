@@ -106,15 +106,36 @@ it in the site.
 
 The configured public address is <https://print123.cpolar.cn>.
 
-Start the site and tunnel by double-clicking the [startup batch file](启动打印站.bat).
-The tunnel starts only when cpolar is installed and an authtoken is configured
-in `%USERPROFILE%\.cpolar\cpolar.yml`; otherwise the site runs locally only.
+Install cpolar and sign in, or place the authtoken in
+`%USERPROFILE%\.cpolar\cpolar.yml`. The startup batch file also accepts a copy
+at `cpolar\cpolar.yml` inside the project folder and passes it to cpolar.
 
+Start the site and tunnel by double-clicking the [startup batch file](启动打印站.bat).
 The reserved name is read from [cpolar-subdomain.txt](cpolar-subdomain.txt).
 Delete that file to let cpolar assign a random public URL instead.
 
 Keep both console windows open, and keep the computer awake and connected to
 the network while the site is in use.
+
+## Moving the Service to Another Computer
+
+1. Stop the site and tunnel on the current computer; one computer at a time can
+   serve the reserved public URL.
+2. Copy the migration package to the new computer and follow its deployment
+   guide: install Python, add the school printer, and install Office if Office
+   files must be printed. PDFs and images do not need Office.
+3. Use the same cpolar account so the public URL stays the same, and keep
+   `cpolar-subdomain.txt` with the reserved name.
+4. Start the startup batch file, open `/admin`, add the rooms, select the
+   printer, and click **Remember as Default Printer**.
+5. To keep existing rooms, files, and password, copy `data.db`, `uploads`,
+   `.secret_key`, and `.admin_password` from the old folder before starting.
+6. Prevent sleep with `powercfg /change standby-timeout-ac 0` and allow Python
+   through Windows Firewall when prompted.
+
+Card-release printing may bind a job to the account of the computer that
+submitted it, so verify with one file which card releases jobs from the new
+computer.
 
 To check the current public URL, run:
 

@@ -48,9 +48,9 @@ set "SUBDOMAIN="
 if exist "%~dp0cpolar-subdomain.txt" set /p SUBDOMAIN=<"%~dp0cpolar-subdomain.txt"
 
 if defined SUBDOMAIN (
-    "%CPOLAR_EXE%" http 5000 -log stdout -region cn -subdomain %SUBDOMAIN%
+    "%CPOLAR_EXE%" http 5000 -log stdout -region cn -subdomain %SUBDOMAIN% -config "%CPOLAR_CONF%"
 ) else (
-    "%CPOLAR_EXE%" http 5000 -log stdout -region cn
+    "%CPOLAR_EXE%" http 5000 -log stdout -region cn -config "%CPOLAR_CONF%"
 )
 pause
 exit /b 0
